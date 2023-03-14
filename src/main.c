@@ -30,7 +30,7 @@ Matrix GenerateRandomMatrix(const int m, const int n, const int maximum) {
 
   srand(time(NULL));
   for (int i = 0; i < m; ++i)
-    for (int j = 0; j < n; ++j) {
+    for (int j = 0; j < m.n; ++j) {
       int r = rand() % maximum;
       matrix.value[i][j] = r;
     }
@@ -60,6 +60,16 @@ Matrix MatrixSum(const Matrix a, const Matrix b) {
   return res;
 }
 
+Matrix MatrixDiff(const Matrix a, const Matrix b) {
+  Matrix res = CreateDynamicMatrix(a.m, a.n);
+  for (int i = 0; i < a.m; ++i) {
+    for (int j = 0; j < b.n; ++j) {
+      res.value[i][j] = a.value[i][j] - b.value[i][j];
+    }
+  }
+  return res;
+}
+
 Matrix MatrixTransponate(const Matrix a) {
   Matrix res = CreateDynamicMatrix(a.n, a.m);
   for (int i = 0; i < a.m; ++i) {
@@ -71,35 +81,95 @@ Matrix MatrixTransponate(const Matrix a) {
 }
 
 Matrix InvertMatrix(Matrix m) {
-    int i, j, k;
     double pivot, tmp;
     Matrix inverted = {0};
 
-    for (i = 0; i < N; i++) {
-        inverted.data[i][i] = 1.0;
+    for (int i = 0; i < m.n; i++) {
+        inverted.value[i][i] = 1.0;
     }
 
-    for (i = 0; i < N; i++) {
-        pivot = m.data[i][i];
+    for (int i = 0; i < m.n; i++) {
+        pivot = m.value[i][i];
 
-        for (j = 0; j < N; j++) {
-            m.data[i][j] /= pivot;
-            inverted.data[i][j] /= pivot;
+        for (int j = 0; j < m.n; j++) {
+            m.value[i][j] /= pivot;
+            inverted.value[i][j] /= pivot;
         }
 
-        for (j = 0; j < N; j++) {
+        for (int j = 0; j < m.n; j++) {
             if (j != i) {
-                tmp = m.data[j][i];
+                tmp = m.value[j][i];
 
-                for (k = 0; k < N; k++) {
-                    m.data[j][k] -= tmp * m.data[i][k];
-                    inverted.data[j][k] -= tmp * inverted.data[i][k];
+                for (int k = 0; k < m.n; k++) {
+                    m.value[j][k] -= tmp * m.value[i][k];
+                    inverted.value[j][k] -= tmp * inverted.value[i][k];
                 }
             }
         }
     }
 
     return inverted;
+}
+
+void StrassenSplit(Matrix a, Matrix a11, Matrix a12, Matrix a21, Matrix a22) {
+  int size = a.m >> 1;
+
+  for (int j = 0; j < size; ++j) {
+    for (int i = 0; i < size; ++i) {
+      a11.value[j][i] = a.value[j][i];
+      a21.value[j][i] = a.value[j + size][i];
+      a12.value[j][i] = a.value[j][i + size];
+      a22.value[j][i] = a.value[j + size][i  + size];
+    }
+  }
+}
+
+Matrix StrassenCollect(Matrix a11, Matrix a12, Matrix a21, Matrix a22) {
+  int size = a11.m;
+  Matrix res = CreateDynamicMatrix(size << 1, size << 1);
+
+  for (int j = 0; j < size; ++j) {
+    for (int i = 0; i < size; ++i) {
+      res.value[j][i] = a11.value[j][i];
+      res.value[j + size][i] = a21.value[j][i];
+      res.value[j][i + size] = a12.value[j][i];
+      res.value[j + size][i  + size] = a22.value[j][i];
+    }
+  }
+  
+  return res;
+}
+
+Matrix Strassen(Matrix a, Matrix b) {
+  int size = a.n >> 1;
+
+  Matrix a11 = CreateDynamicMatrix(size, size);
+  Matrix a21 = CreateDynamicMatrix(size, size);
+  Matrix a12 = CreateDynamicMatrix(size, size);
+  Matrix a22 = CreateDynamicMatrix(size, size);
+
+  Matrix b11 = CreateDynamicMatrix(size, size);
+  Matrix b21 = CreateDynamicMatrix(size, size);
+  Matrix b12 = CreateDynamicMatrix(size, size);
+  Matrix b22 = CreateDynamicMatrix(size, size);
+
+  StrassenSplit(a, a11, a12, a21, a22);
+  StrassenSplit(b, b11, b12, b21, b22);
+
+  Matrix p1 = Strassen(MatrixSum(a11, a22), MatrixSum(b11, b22));
+  Matrix p2 = Strassen(MatrixSum(a11, a22), b11);
+  Matrix p3 = Strassen(a11, MatrixDiff(b11, b22));
+  Matrix p4 = Strassen(a22, MatrixDiff(b21, b11));
+  Matrix p5 = Strassen(MatrixSum(a11, a12), b22);
+  Matrix p6 = Strassen(MatrixDiff(a21, a11), MatrixSum(b11, b12));
+  Matrix p7 = Strassen(MatrixDiff(a12, a22), MatrixSum(b21, b22));
+
+  Matrix c11 = MatrixSum(MatrixSum(p1, p4), MatrixDiff(p7, p5));
+  Matrix c12 = MatrixSum(p3, p5);
+  Matrix c21 = MatrixSum(p2, p4);
+  Matrix c22 = MatrixSum(MatrixDiff(p1, p2), MatrixSum(p3, p6));
+
+  return StrassenCollect(c11, c12, c21, c22);
 }
 
 void FillMatrix(Matrix matrix) {
